@@ -165,7 +165,7 @@ def convert_xml_to_tf(xml_content: str):
                 continue
 
             rules = single_list(rules)
-            multiples = [
+            multiples = 
                 "category", "service", "from", "to", "destination",
                 "source", "source-user", "source-hip", "application",
             ]
@@ -222,6 +222,18 @@ def convert_xml_to_tf(xml_content: str):
 
 
 # ========== Flask routes ==========
+#
+#  浏览器                          Flask (app.run)
+#    │                                  │
+#    │  TCP 连接 :8080                  │
+#    │  GET / HTTP/1.1 ─────────────→  │  收到报文
+#    │                                  │  查路由表: "/" → index()
+#    │                                  │  执行 index()
+#    │                                  │  读取 index.html
+#    │  ←───────────── HTTP/1.1 200 OK │  发回 HTML 字符串
+#    │         <html>...</html>         │
+#    │                                  │
+#    ▼ 渲染页面                          ▼ 继续等下一个请求
 
 @app.route("/")
 def index():

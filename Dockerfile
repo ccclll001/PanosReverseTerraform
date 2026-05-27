@@ -10,4 +10,5 @@ COPY templates/ templates/
 
 EXPOSE 8080
 
-CMD ["python", "web_app.py"]
+# Production: gunicorn (replace Flask dev server)
+CMD ["gunicorn", "web_app:app", "--bind", "0.0.0.0:8080", "--workers", "2", "--timeout", "60"]
