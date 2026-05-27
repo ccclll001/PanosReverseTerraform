@@ -168,7 +168,7 @@ def convert_xml_to_tf(xml_content: str):
             multiples = 
                 "category", "service", "from", "to", "destination",
                 "source", "source-user", "source-hip", "application",
-            ]
+
 
             dg_name = dg.get("@name", "shared")
 
