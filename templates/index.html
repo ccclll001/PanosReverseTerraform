@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Panorama to Terraform Converter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=IBM+Plex+Sans:wght@300;400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg-deep: #1A1A2E;
+    --bg-mid: #16213E;
+    --accent: #E94560;
+    --blue: #0F3460;
+    --green: #16C79A;
+    --text: #F5F5F5;
+    --text-dim: #8892B0;
+    --border: #233554;
+  }
+
+  body {
+    font-family: 'IBM Plex Sans', sans-serif;
+    background: var(--bg-deep);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow-x: hidden;
+  }
+
+  /* Background pattern */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      linear-gradient(135deg, var(--bg-mid) 0%, var(--bg-deep) 100%),
+      repeating-linear-gradient(
+        45deg,
+        transparent,
+        transparent 2px,
+        rgba(233,69,96,0.02) 2px,
+        rgba(233,69,96,0.02) 4px
+      );
+    z-index: -1;
+  }
+
+  /* Header */
+  header {
+    width: 100%;
+    padding: 2rem 2rem 1rem;
+    text-align: center;
+  }
+  header h1 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: var(--text);
+  }
+  header h1 .accent { color: var(--accent); }
+  header p {
+    color: var(--text-dim);
+    margin-top: 0.4rem;
+    font-size: 0.9rem;
+    letter-spacing: 0.05em;
+  }
+
+  /* Accent line */
+  .divider {
+    width: 120px;
+    height: 3px;
+    background: var(--accent);
+    margin: 0.8rem auto 0;
+    transform: skewX(-20deg);
+    opacity: 0.8;
+  }
+
+  /* Main container */
+  .container {
+    width: 100%;
+    max-width: 680px;
+    padding: 0 1.5rem 3rem;
+  }
+
+  /* Upload zone */
+  .upload-zone {
+    background: var(--bg-mid);
+    border: 2px dashed var(--border);
+    border-radius: 6px;
+    padding: 3rem 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    position: relative;
+  }
+  .upload-zone:hover, .upload-zone.dragover {
+    border-color: var(--accent);
+    background: rgba(233,69,96,0.05);
+  }
+  .upload-zone .icon-circle {
+    width: 64px; height: 64px;
+    border: 2px solid var(--accent);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 1rem;
+    transform: rotate(-10deg);
+  }
+  .upload-zone .icon-circle i {
+    font-size: 1.6rem;
+    color: var(--accent);
+  }
+  .upload-zone p {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+    color: var(--text-dim);
+    line-height: 1.6;
+  }
+  .upload-zone p strong { color: var(--text); }
+  .upload-zone input { display: none; }
+
+  /* File selected state */
+  .file-selected {
+    margin-top: 1rem;
+    padding: 0.8rem 1rem;
+    background: var(--blue);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.8rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+  }
+  .file-selected .file-name { color: var(--green); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .file-selected .remove-btn { color: var(--accent); cursor: pointer; background: none; border: none; font-size: 1rem; }
+
+  /* Convert button */
+  .btn-convert {
+    display: block;
+    width: 100%;
+    margin-top: 1.2rem;
+    padding: 0.9rem;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    letter-spacing: 0.05em;
+    transition: background 0.2s, transform 0.15s;
+  }
+  .btn-convert:hover { background: #D13D56; transform: translateY(-1px); }
+  .btn-convert:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  /* Status messages */
+  .status {
+    margin-top: 1.5rem;
+    padding: 1rem 1.2rem;
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    display: none;
+  }
+  .status.error {
+    display: block;
+    background: rgba(233,69,96,0.12);
+    border-left: 3px solid var(--accent);
+    color: var(--accent);
+  }
+  .status.success {
+    display: block;
+    background: rgba(22,199,154,0.12);
+    border-left: 3px solid var(--green);
+    color: var(--green);
+  }
+  .status.loading {
+    display: block;
+    background: rgba(15,52,96,0.25);
+    border-left: 3px solid var(--text-dim);
+    color: var(--text-dim);
+  }
+
+  /* Result stats */
+  .stats {
+    margin-top: 1rem;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.6rem;
+    display: none;
+  }
+  .stats.show { display: grid; }
+  .stat-box {
+    background: var(--bg-mid);
+    padding: 0.8rem;
+    border-radius: 4px;
+    text-align: center;
+    border: 1px solid var(--border);
+  }
+  .stat-box .num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--green);
+  }
+  .stat-box .label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    margin-top: 0.2rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  /* Download button */
+  .btn-download {
+    display: none;
+    width: 100%;
+    margin-top: 0.8rem;
+    padding: 0.8rem;
+    background: var(--green);
+    color: var(--bg-deep);
+    border: none;
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .btn-download.show { display: block; }
+  .btn-download:hover { background: #13B389; }
+
+  /* Footer */
+  footer {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    text-align: center;
+    padding: 2rem 1rem;
+    opacity: 0.5;
+  }
+
+  /* Loading spinner */
+  .spinner {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid var(--text-dim);
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    vertical-align: middle;
+    margin-right: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Panos<span class="accent">2</span>Terraform</h1>
+  <p>XML Config &rarr; Terraform Files</p>
+  <div class="divider"></div>
+</header>
+
+<div class="container">
+  <!-- Upload zone -->
+  <div class="upload-zone" id="uploadZone">
+    <div class="icon-circle"><i class="fa-solid fa-file-code"></i></div>
+    <p><strong>Drop <code>running-config.xml</code> here</strong></p>
+    <p>or click to browse &mdash; Max 50 MB</p>
+    <input type="file" id="fileInput" accept=".xml">
+  </div>
+
+  <!-- File info bar -->
+  <div class="file-selected" id="fileInfo" style="display:none">
+    <i class="fa-solid fa-file-lines" style="color:var(--green)"></i>
+    <span class="file-name" id="fileName"></span>
+    <button class="remove-btn" id="removeBtn">&times;</button>
+  </div>
+
+  <!-- Convert -->
+  <button class="btn-convert" id="convertBtn" disabled>Convert to Terraform</button>
+
+  <!-- Status -->
+  <div class="status" id="status"></div>
+
+  <!-- Stats -->
+  <div class="stats" id="stats">
+    <div class="stat-box">
+      <div class="num" id="statRules">-</div>
+      <div class="label">Security Rules</div>
+    </div>
+    <div class="stat-box">
+      <div class="num" id="statAddr">-</div>
+      <div class="label">Addresses</div>
+    </div>
+    <div class="stat-box">
+      <div class="num" id="statAG">-</div>
+      <div class="label">Addr Groups</div>
+    </div>
+  </div>
+
+  <!-- Download -->
+  <button class="btn-download" id="downloadBtn">
+    <i class="fa-solid fa-download"></i> Download terraform_files.zip
+  </button>
+</div>
+
+<footer>Supports Panorama &amp; Standalone Firewall Configs</footer>
+
+<script>
+  const uploadZone = document.getElementById('uploadZone');
+  const fileInput = document.getElementById('fileInput');
+  const fileInfo = document.getElementById('fileInfo');
+  const fileName = document.getElementById('fileName');
+  const removeBtn = document.getElementById('removeBtn');
+  const convertBtn = document.getElementById('convertBtn');
+  const statusEl = document.getElementById('status');
+  const statsEl = document.getElementById('stats');
+  const downloadBtn = document.getElementById('downloadBtn');
+
+  let selectedFile = null;
+  let resultBlob = null;
+
+  // Click to browse
+  uploadZone.addEventListener('click', () => fileInput.click());
+
+  // Drag & drop
+  uploadZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    uploadZone.classList.add('dragover');
+  });
+  uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+  uploadZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    uploadZone.classList.remove('dragover');
+    if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+  });
+
+  // File selection
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files.length) handleFile(fileInput.files[0]);
+  });
+
+  function handleFile(file) {
+    if (!file.name.toLowerCase().endsWith('.xml')) {
+      showStatus('Please upload an .xml file', 'error');
+      return;
+    }
+    selectedFile = file;
+    fileName.textContent = file.name;
+    fileInfo.style.display = 'flex';
+    convertBtn.disabled = false;
+    hideStatus();
+    statsEl.classList.remove('show');
+    downloadBtn.classList.remove('show');
+    resultBlob = null;
+  }
+
+  // Remove file
+  removeBtn.addEventListener('click', () => {
+    selectedFile = null;
+    resultBlob = null;
+    fileInfo.style.display = 'none';
+    convertBtn.disabled = true;
+    fileInput.value = '';
+    hideStatus();
+    statsEl.classList.remove('show');
+    downloadBtn.classList.remove('show');
+  });
+
+  // Convert
+  convertBtn.addEventListener('click', async () => {
+    if (!selectedFile) return;
+    convertBtn.disabled = true;
+    showStatus('<span class="spinner"></span>Processing XML...', 'loading');
+    statsEl.classList.remove('show');
+    downloadBtn.classList.remove('show');
+
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+
+    try {
+      const resp = await fetch('/convert', { method: 'POST', body: formData });
+      if (resp.ok) {
+        resultBlob = await resp.blob();
+        showStatus('Conversion complete!', 'success');
+        statsEl.classList.add('show');
+        downloadBtn.classList.add('show');
+        updateStats(resp.headers);
+      } else {
+        const data = await resp.json();
+        showStatus(data.error || 'Conversion failed', 'error');
+      }
+    } catch (err) {
+      showStatus('Network error: ' + err.message, 'error');
+    }
+    convertBtn.disabled = false;
+  });
+
+  // Download
+  downloadBtn.addEventListener('click', () => {
+    if (!resultBlob) return;
+    const url = URL.createObjectURL(resultBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'terraform_files.zip';
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  function updateStats(headers) {
+    document.getElementById('statRules').textContent = headers.get('X-Stats-Rules') || '-';
+    document.getElementById('statAddr').textContent = headers.get('X-Stats-Addresses') || '-';
+    document.getElementById('statAG').textContent = headers.get('X-Stats-Groups') || '-';
+    const cfgType = headers.get('X-Config-Type') || '';
+    if (cfgType) {
+      statusEl.innerHTML = `Conversion complete &mdash; detected <strong>${cfgType}</strong> config`;
+      statusEl.className = 'status success';
+    }
+  }
+
+  function showStatus(msg, type) {
+    statusEl.innerHTML = msg;
+    statusEl.className = 'status ' + type;
+  }
+  function hideStatus() {
+    statusEl.className = 'status';
+    statusEl.innerHTML = '';
+  }
+</script>
+</body>
+</html>

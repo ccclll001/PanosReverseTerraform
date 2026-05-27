@@ -1,0 +1,6 @@
+{
+  "envId": "cccl-d9gjv76i36dcafa55",
+  "cloudrun": {
+    "name": "panos2terraform"
+  }
+}
