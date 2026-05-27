@@ -14,24 +14,32 @@ def main():
     with open(PANORAMA_CONFIG_FILENAME) as f:
         doc = xmltodict.parse(f.read())
         # Select device groups entries (safe navigation)
+        # Auto-detect: Panorama (device-group) vs standalone firewall (vsys)
         try:
             devices_entry = doc["config"]["devices"]["entry"]
             dg_container = devices_entry.get("device-group", {})
-            if not dg_container:
-                print("Warning: No 'device-group' found in devices entry, "
-                      "available keys: {}".format(list(devices_entry.keys())))
-                device_groups = []
+            vsys_container = devices_entry.get("vsys", {})
+
+            if dg_container:
+                # Panorama mode: use device-group entries
+                device_groups = single_list(dg_container["entry"])
+                rulebases = ["pre-rulebase", "post-rulebase"]
+                print("Detected Panorama config: using device-group entries.")
+            elif vsys_container:
+                # Firewall mode: use vsys entries as device groups
+                device_groups = single_list(vsys_container["entry"])
+                rulebases = ["rulebase"]
+                print("Detected firewall config: using vsys entries as device groups.")
             else:
-                device_groups = dg_container["entry"]
-                # Create a list with a single element if theres only one device group
-                # To generalize the code
-                device_groups = single_list(device_groups)
+                print(f"Error: Unknown config structure. "
+                      f"Available keys: {list(devices_entry.keys())}")
+                return
         except KeyError as e:
             print(f"Error: Missing expected XML key: {e}. "
                   "Please verify the running-config.xml structure.")
             return
 
-        # Select Shared DG and create a single elem list
+        # Select Shared DG (Panorama only, firewall will be a no-op)
         try:
             shared_dg = doc["config"]["shared"]
             shared_dg = single_list(shared_dg)
@@ -43,8 +51,8 @@ def main():
         device_groups += shared_dg
 
         for dg in device_groups:
-            # Get rules per rulebase
-            for rulebase in ["pre-rulebase", "post-rulebase"]:
+            # Get rules per rulebase (differs between Panorama and firewall)
+            for rulebase in rulebases:
                 write_policy_block(dg, rulebase)
 
             ###Get Addresses from DG
