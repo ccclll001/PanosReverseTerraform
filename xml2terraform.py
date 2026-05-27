@@ -147,10 +147,13 @@ resource "panos_panorama_security_policy" "{name}" {{
 
 def deepGet(t: dict, default, keys: list):
     for key in keys:
+        if not isinstance(t, dict):
+            return default
         result = t.get(key, default)
         if result == default:
             return default
-    return result
+        t = result
+    return t
 
 
 def smartGet(t: dict, default: str, keys: list):
@@ -206,4 +209,5 @@ resource "panos_panorama_address_group" "example" {{
     return terraform_string
 
 
-main()
+if __name__ == "__main__":
+    main()
